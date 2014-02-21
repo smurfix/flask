@@ -783,8 +783,8 @@ class _PackageBoundObject(object):
         .. versionadded:: 0.5
         """
         if self.template_folder is not None:
-            return FileSystemLoader(os.path.join(self.root_path,
-                                                 self.template_folder))
+            return FileSystemLoader([self.template_folder, os.path.join(self.root_path,
+                                                 self.template_folder)])
 
     def get_send_file_max_age(self, filename):
         """Provides default cache_timeout for the :func:`send_file` functions.
