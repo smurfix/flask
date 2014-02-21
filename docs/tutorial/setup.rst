@@ -4,26 +4,19 @@ Step 2: Application Setup Code
 ==============================
 
 Now that we have the schema in place we can create the application module.
-Let's call it `flaskr.py` inside the `flaskr` folder.  For starters we
-will add the imports we will need as well as the config section.  For
-small applications it's a possibility to drop the configuration directly
-into the module which we will be doing here.  However a cleaner solution
-would be to create a separate `.ini` or `.py` file and load that or import
-the values from there.
+Let's call it flaskr.py. We will place this file inside the flask folder.
+We will begin by adding the imports we need and by adding the config
+section.  For small applications, it is possible to drop the configuration
+directly into the module, and this is what we will be doing here. However
+a cleaner solution would be to create a separate `.ini` or `.py` file and
+load that or import the values from there.
 
-In `flaskr.py`::
+First we add the imports in `flaskr.py`::
 
     # all the imports
     import sqlite3
-    from flask import Flask, request, session, g, redirect, url_for, \
-         abort, render_template, flash
-
-    # configuration
-    DATABASE = '/tmp/flaskr.db'
-    DEBUG = True
-    SECRET_KEY = 'development key'
-    USERNAME = 'admin'
-    PASSWORD = 'default'
+    from flask import Flask, request, session, g, redirect, url_for, abort, \
+         render_template, flash
 
 Next we can create our actual application and initialize it with the
 config from the same file, in `flaskr.py`::
@@ -32,36 +25,71 @@ config from the same file, in `flaskr.py`::
     app = Flask(__name__)
     app.config.from_object(__name__)
 
-:meth:`~flask.Config.from_object` will look at the given object (if it's a
-string it will import it) and then look for all uppercase variables
-defined there.  In our case, the configuration we just wrote a few lines
-of code above.  You can also move that into a separate file.
-
-Usually, it is a good idea to load a configuration from a configurable
-file. This is what :meth:`~flask.Config.from_envvar` can do, replacing the
-:meth:`~flask.Config.from_object` line above::
-
+    # Load default config and override config from an environment variable
+    app.config.update(dict(
+        DATABASE=os.path.join(app.root_path, 'flaskr.db'),
+        DEBUG=True,
+        SECRET_KEY='development key',
+        USERNAME='admin',
+        PASSWORD='default'
+    ))
     app.config.from_envvar('FLASKR_SETTINGS', silent=True)
 
-That way someone can set an environment variable called
-:envvar:`FLASKR_SETTINGS` to specify a config file to be loaded which will then
-override the default values. The silent switch just tells Flask to not complain
+The :class:`~flask.Config` object works similar to a dictionary so we
+can update it with new values.
+
+.. admonition:: Database Path
+
+    Operating systems know the concept of a current working directory for
+    each process.  Unfortunately you cannot depend on this in web
+    applications because you might have more than one application in the
+    same process.
+
+    For this reason the ``app.root_path`` attribute can be used to
+    get the path to the application.  Together with the ``os.path`` module
+    files can then easily be found.  In this example we place the
+    database right next to it.
+
+    For a real-work application it's recommended to use
+    :ref:`instance-folders` instead.
+
+Usually, it is a good idea to load a separate, environment specific
+configuration file.  Flask allows you to import multiple configurations and it 
+will use the setting defined in the last import. This enables robust 
+configuration setups.  :meth:`~flask.Config.from_envvar` can help achieve this. 
+    
+    app.config.from_envvar('FLASKR_SETTINGS', silent=True)
+
+Simply define the environment variable :envvar:`FLASKR_SETTINGS` that points to 
+a config file to be loaded.  The silent switch just tells Flask to not complain 
 if no such environment key is set.
 
-The `secret_key` is needed to keep the client-side sessions secure.
+In addition to that you can use the :meth:`~flask.Config.from_object`
+method on the config object and provide it with an import name of a
+module.  Flask will the initialize the variable from that module.  Note
+that in all cases only variable names that are uppercase are considered.
+
+The ``SECRET_KEY`` is needed to keep the client-side sessions secure.
 Choose that key wisely and as hard to guess and complex as possible.  The
 debug flag enables or disables the interactive debugger.  *Never leave
 debug mode activated in a production system*, because it will allow users to
 execute code on the server!
 
-We also add a method to easily connect to the database specified.  That
-can be used to open a connection on request and also from the interactive
-Python shell or a script.  This will come in handy later.
+We will also add a method that allows for  easily connecting to the
+specified database.  This can be used to open a connection on request and
+also from the interactive Python shell or a script.  This will come in
+handy later.  We create a simple database connection through SQLite and
+then tell it to use the :class:`sqlite3.Row` object to represent rows.
+This allows us to treat the rows as if they were dictionaries instead of
+tuples.
 
 ::
 
     def connect_db():
-        return sqlite3.connect(app.config['DATABASE'])
+        """Connects to the specific database."""
+        rv = sqlite3.connect(app.config['DATABASE'])
+        rv.row_factory = sqlite3.Row
+        return rv
 
 Finally we just add a line to the bottom of the file that fires up the
 server if we want to run that file as a standalone application::
@@ -87,4 +115,4 @@ focus on that a little later.  First we should get the database working.
    :ref:`externally visible server <public-server>` section for more
    information.
 
-Continue with :ref:`tutorial-dbinit`.
+Continue with :ref:`tutorial-dbcon`.

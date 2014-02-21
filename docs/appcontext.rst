@@ -82,8 +82,8 @@ moves between threads and it will not be shared between requests.  As such
 it is the perfect place to store database connection information and other
 things.  The internal stack object is called :data:`flask._app_ctx_stack`.
 Extensions are free to store additional information on the topmost level,
-assuming they pick a sufficiently unique name and should put there
-information there, instead on the :data:`flask.g` object which is reserved
+assuming they pick a sufficiently unique name and should put their
+information there, instead of on the :data:`flask.g` object which is reserved
 for user code.
 
 For more information about that, see :ref:`extension-dev`.

@@ -11,6 +11,7 @@
 
 import re
 import uuid
+import time
 import flask
 import pickle
 import unittest
@@ -84,6 +85,13 @@ class BasicFunctionalityTestCase(FlaskTestCase):
         rv = c.delete('/more')
         self.assert_equal(rv.status_code, 405)
         self.assert_equal(sorted(rv.allow), ['GET', 'HEAD', 'OPTIONS', 'POST'])
+
+    def test_disallow_string_for_allowed_methods(self):
+        app = flask.Flask(__name__)
+        with self.assert_raises(TypeError):
+            @app.route('/', methods='GET POST')
+            def index():
+                return "Hey"
 
     def test_url_mapping(self):
         app = flask.Flask(__name__)
@@ -344,6 +352,49 @@ class BasicFunctionalityTestCase(FlaskTestCase):
         self.assert_equal(rv['b'], b'\xff')
         self.assert_equal(type(rv['b']), bytes)
         self.assert_equal(rv['t'], (1, 2, 3))
+
+    def test_session_cookie_setting(self):
+        app = flask.Flask(__name__)
+        app.testing = True
+        app.secret_key = 'dev key'
+        is_permanent = True
+
+        @app.route('/bump')
+        def bump():
+            rv = flask.session['foo'] = flask.session.get('foo', 0) + 1
+            flask.session.permanent = is_permanent
+            return str(rv)
+
+        @app.route('/read')
+        def read():
+            return str(flask.session.get('foo', 0))
+
+        def run_test(expect_header):
+            with app.test_client() as c:
+                self.assert_equal(c.get('/bump').data, b'1')
+                self.assert_equal(c.get('/bump').data, b'2')
+                self.assert_equal(c.get('/bump').data, b'3')
+
+                rv = c.get('/read')
+                set_cookie = rv.headers.get('set-cookie')
+                self.assert_equal(set_cookie is not None, expect_header)
+                self.assert_equal(rv.data, b'3')
+
+        is_permanent = True
+        app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+        run_test(expect_header=True)
+
+        is_permanent = True
+        app.config['SESSION_REFRESH_EACH_REQUEST'] = False
+        run_test(expect_header=False)
+
+        is_permanent = False
+        app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+        run_test(expect_header=False)
+
+        is_permanent = False
+        app.config['SESSION_REFRESH_EACH_REQUEST'] = False
+        run_test(expect_header=False)
 
     def test_flashes(self):
         app = flask.Flask(__name__)
@@ -685,7 +736,23 @@ class BasicFunctionalityTestCase(FlaskTestCase):
             return 'Meh', 400, {
                 'X-Foo': 'Testing',
                 'Content-Type': 'text/plain; charset=utf-8'
+            } 
+        @app.route('/two_args')
+        def from_two_args_tuple():
+            return 'Hello', {
+                'X-Foo': 'Test',
+                'Content-Type': 'text/plain; charset=utf-8'
             }
+        @app.route('/args_status')
+        def from_status_tuple():
+            return 'Hi, status!', 400
+        @app.route('/args_header')
+        def from_response_instance_status_tuple():
+            return flask.Response('Hello world', 404), {
+                "X-Foo": "Bar",
+                "X-Bar": "Foo"
+            }
+
         c = app.test_client()
         self.assert_equal(c.get('/unicode').data, u'Hällo Wörld'.encode('utf-8'))
         self.assert_equal(c.get('/string').data, u'Hällo Wörld'.encode('utf-8'))
@@ -694,6 +761,20 @@ class BasicFunctionalityTestCase(FlaskTestCase):
         self.assert_equal(rv.headers['X-Foo'], 'Testing')
         self.assert_equal(rv.status_code, 400)
         self.assert_equal(rv.mimetype, 'text/plain')
+        rv2 = c.get('/two_args')
+        self.assert_equal(rv2.data, b'Hello')
+        self.assert_equal(rv2.headers['X-Foo'], 'Test')
+        self.assert_equal(rv2.status_code, 200)
+        self.assert_equal(rv2.mimetype, 'text/plain')
+        rv3 = c.get('/args_status')
+        self.assert_equal(rv3.data, b'Hi, status!')
+        self.assert_equal(rv3.status_code, 400)
+        self.assert_equal(rv3.mimetype, 'text/html')
+        rv4 = c.get('/args_header')
+        self.assert_equal(rv4.data, b'Hello world')
+        self.assert_equal(rv4.headers['X-Foo'], 'Bar')
+        self.assert_equal(rv4.headers['X-Bar'], 'Foo')
+        self.assert_equal(rv4.status_code, 404)
 
     def test_make_response(self):
         app = flask.Flask(__name__)
@@ -1013,6 +1094,26 @@ class BasicFunctionalityTestCase(FlaskTestCase):
         self.assert_equal(got, [42])
         c.get('/')
         self.assert_equal(got, [42])
+        self.assert_true(app.got_first_request)
+
+    def test_before_first_request_functions_concurrent(self):
+        got = []
+        app = flask.Flask(__name__)
+
+        @app.before_first_request
+        def foo():
+            time.sleep(0.2)
+            got.append(42)
+
+        c = app.test_client()
+        def get_and_assert():
+            c.get("/")
+            self.assert_equal(got, [42])
+
+        t = Thread(target=get_and_assert)
+        t.start()
+        get_and_assert()
+        t.join()
         self.assert_true(app.got_first_request)
 
     def test_routing_redirect_debugging(self):

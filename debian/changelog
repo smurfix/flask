@@ -1,3 +1,9 @@
+flask (0.11~git1-d43bfb261-1) unstable; urgency=low
+
+  * Upstream merge from git
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Fri, 21 Feb 2014 10:13:59 +0100
+
 flask (0.10.1-2) unstable; urgency=low
 
   * Add python3-flask binary package

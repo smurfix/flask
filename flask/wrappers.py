@@ -107,6 +107,21 @@ class Request(RequestBase):
         # XXX: deprecate property
         return self.get_json()
 
+    @property
+    def is_json(self):
+        """Indicates if this request is JSON or not.  By default a request
+        is considered to include JSON data if the mimetype is
+        ``application/json`` or ``application/*+json``.
+
+        .. versionadded:: 0.11
+        """
+        mt = self.mimetype
+        if mt == 'application/json':
+            return True
+        if mt.startswith('application/') and mt.endswith('+json'):
+            return True
+        return False
+
     def get_json(self, force=False, silent=False, cache=True):
         """Parses the incoming JSON request data and returns it.  If
         parsing fails the :meth:`on_json_loading_failed` method on the
@@ -115,8 +130,8 @@ class Request(RequestBase):
         but this can be overriden by the `force` parameter.
 
         :param force: if set to `True` the mimetype is ignored.
-        :param silent: if set to `False` this method will fail silently
-                       and return `False`.
+        :param silent: if set to `True` this method will fail silently
+                       and return `None`.
         :param cache: if set to `True` the parsed JSON data is remembered
                       on the request.
         """
@@ -124,7 +139,7 @@ class Request(RequestBase):
         if rv is not _missing:
             return rv
 
-        if self.mimetype != 'application/json' and not force:
+        if not (force or self.is_json):
             return None
 
         # We accept a request charset against the specification as

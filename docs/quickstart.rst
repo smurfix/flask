@@ -192,8 +192,8 @@ The following converters exist:
    with a trailing slash will produce a 404 "Not Found" error.
 
    This behavior allows relative URLs to continue working even if the trailing
-   slash is ommited, consistent with how Apache and other servers work.  Also, 
-   the URLs will stay unique, which helps search engines avoid indexing the 
+   slash is omitted, consistent with how Apache and other servers work.  Also,
+   the URLs will stay unique, which helps search engines avoid indexing the
    same page twice.
 
 
@@ -236,8 +236,9 @@ below.  It tells Flask to behave as though it is handling a request, even
 though we are interacting with it through a Python shell.  Have a look at the
 explanation below. :ref:`context-locals`).
 
-Why would you want to build URLs instead of hard-coding them into your
-templates?  There are three good reasons for this:
+Why would you want to build URLs using the URL reversing function :func:`~flask.url_for` 
+instead of hard-coding them into your templates?  There are three good reasons 
+for this:
 
 1. Reversing is often more descriptive than hard-coding the URLs.  More
    importantly, it allows you to change URLs in one go, without having to
@@ -318,7 +319,7 @@ Now the interesting part is that in HTML4 and XHTML1, the only methods a
 form can submit to the server are `GET` and `POST`.  But with JavaScript
 and future HTML standards you can use the other methods as well.  Furthermore
 HTTP has become quite popular lately and browsers are no longer the only
-clients that are using HTTP. For instance, many revision control system
+clients that are using HTTP. For instance, many revision control systems
 use it.
 
 .. _HTTP RFC: http://www.ietf.org/rfc/rfc2068.txt
@@ -666,8 +667,8 @@ About Responses
 
 The return value from a view function is automatically converted into a
 response object for you.  If the return value is a string it's converted
-into a response object with the string as response body, an ``200 OK``
-error code and a ``text/html`` mimetype.  The logic that Flask applies to
+into a response object with the string as response body, a ``200 OK``
+status code and a ``text/html`` mimetype.  The logic that Flask applies to
 converting return values into response objects is as follows:
 
 1.  If a response object of the correct type is returned it's directly
@@ -676,9 +677,9 @@ converting return values into response objects is as follows:
     default parameters.
 3.  If a tuple is returned the items in the tuple can provide extra
     information.  Such tuples have to be in the form ``(response, status,
-    headers)`` where at least one item has to be in the tuple.  The
-    `status` value will override the status code and `headers` can be a
-    list or dictionary of additional header values.
+    headers)`` or ``(response, headers)`` where at least one item has
+    to be in the tuple.  The `status` value will override the status code
+    and `headers` can be a list or dictionary of additional header values.
 4.  If none of that works, Flask will assume the return value is a
     valid WSGI application and convert that into a response object.
 

@@ -175,6 +175,17 @@ class Flask(_PackageBoundObject):
                                      _set_request_globals_class)
     del _get_request_globals_class, _set_request_globals_class
 
+    #: The class that is used for the ``config`` attribute of this app.
+    #: Defaults to :class:`~flask.Config`.
+    #:
+    #: Example use cases for a custom class:
+    #:
+    #: 1. Default values for certain config options.
+    #: 2. Access to config values through attributes in addition to keys.
+    #:
+    #: .. versionadded:: 1.0
+    config_class = Config
+
     #: The debug flag.  Set this to `True` to enable debugging of the
     #: application.  In debug mode the debugger will kick in when an unhandled
     #: exception occurs and the integrated server will automatically reload
@@ -285,6 +296,7 @@ class Flask(_PackageBoundObject):
         'SESSION_COOKIE_PATH':                  None,
         'SESSION_COOKIE_HTTPONLY':              True,
         'SESSION_COOKIE_SECURE':                False,
+        'SESSION_REFRESH_EACH_REQUEST':         True,
         'MAX_CONTENT_LENGTH':                   None,
         'SEND_FILE_MAX_AGE_DEFAULT':            12 * 60 * 60, # 12 hours
         'TRAP_BAD_REQUEST_ERRORS':              False,
@@ -360,7 +372,7 @@ class Flask(_PackageBoundObject):
         #: A dictionary of all registered error handlers.  The key is `None`
         #: for error handlers active on the application, otherwise the key is
         #: the name of the blueprint.  Each key points to another dictionary
-        #: where they key is the status code of the http exception.  The
+        #: where the key is the status code of the http exception.  The
         #: special key `None` points to a list of tuples where the first item
         #: is the class for the instance check and the second the error handler
         #: function.
@@ -469,8 +481,8 @@ class Flask(_PackageBoundObject):
         #:          app.extensions = {}
         #:      app.extensions['extensionname'] = SomeObject()
         #:
-        #: The key must match the name of the `flaskext` module.  For example in
-        #: case of a "Flask-Foo" extension in `flaskext.foo`, the key would be
+        #: The key must match the name of the extension module. For example in
+        #: case of a "Flask-Foo" extension in `flask_foo`, the key would be
         #: ``'foo'``.
         #:
         #: .. versionadded:: 0.7
@@ -609,7 +621,7 @@ class Flask(_PackageBoundObject):
         root_path = self.root_path
         if instance_relative:
             root_path = self.instance_path
-        return Config(root_path, self.default_config)
+        return self.config_class(root_path, self.default_config)
 
     def auto_find_instance_path(self):
         """Tries to locate the instance path if it was not provided to the
@@ -948,6 +960,9 @@ class Flask(_PackageBoundObject):
         # a tuple of only `GET` as default.
         if methods is None:
             methods = getattr(view_func, 'methods', None) or ('GET',)
+        if isinstance(methods, string_types):
+            raise TypeError('Allowed methods have to be iterables of strings, '
+                            'for example: @app.route(..., methods=["POST"])')
         methods = set(methods)
 
         # Methods that should always be added
@@ -967,11 +982,6 @@ class Flask(_PackageBoundObject):
 
         # Add the required methods now.
         methods |= required_methods
-
-        # due to a werkzeug bug we need to make sure that the defaults are
-        # None if they are an empty dictionary.  This should not be necessary
-        # with Werkzeug 0.7
-        options['defaults'] = options.get('defaults') or None
 
         rule = self.url_rule_class(rule, methods=methods, **options)
         rule.provide_automatic_options = provide_automatic_options
@@ -1159,7 +1169,6 @@ class Flask(_PackageBoundObject):
         """
         self.jinja_env.tests[name or f.__name__] = f
 
-
     @setupmethod
     def template_global(self, name=None):
         """A decorator that is used to register a custom template global function.
@@ -1206,6 +1215,7 @@ class Flask(_PackageBoundObject):
         .. versionadded:: 0.8
         """
         self.before_first_request_funcs.append(f)
+        return f
 
     @setupmethod
     def after_request(self, f):
@@ -1492,9 +1502,9 @@ class Flask(_PackageBoundObject):
         with self._before_request_lock:
             if self._got_first_request:
                 return
-            self._got_first_request = True
             for func in self.before_first_request_funcs:
                 func()
+            self._got_first_request = True
 
     def make_default_options_response(self):
         """This method is called to create the default `OPTIONS` response.
@@ -1546,9 +1556,10 @@ class Flask(_PackageBoundObject):
         a WSGI function         the function is called as WSGI application
                                 and buffered as response object
         :class:`tuple`          A tuple in the form ``(response, status,
-                                headers)`` where `response` is any of the
+                                headers)`` or ``(response, headers)``
+                                where `response` is any of the
                                 types defined here, `status` is a string
-                                or an integer and `headers` is a list of
+                                or an integer and `headers` is a list or
                                 a dictionary with header values.
         ======================= ===========================================
 
@@ -1558,12 +1569,15 @@ class Flask(_PackageBoundObject):
            Previously a tuple was interpreted as the arguments for the
            response object.
         """
-        status = headers = None
+        status_or_headers = headers = None
         if isinstance(rv, tuple):
-            rv, status, headers = rv + (None,) * (3 - len(rv))
+            rv, status_or_headers, headers = rv + (None,) * (3 - len(rv))
 
         if rv is None:
             raise ValueError('View function did not return a response')
+
+        if isinstance(status_or_headers, (dict, list)):
+            headers, status_or_headers = status_or_headers, None
 
         if not isinstance(rv, self.response_class):
             # When we create a response object directly, we let the constructor
@@ -1571,20 +1585,21 @@ class Flask(_PackageBoundObject):
             # some extra logic involved when creating these objects with
             # specific values (like default content type selection).
             if isinstance(rv, (text_type, bytes, bytearray)):
-                rv = self.response_class(rv, headers=headers, status=status)
-                headers = status = None
+                rv = self.response_class(rv, headers=headers, status=status_or_headers)
+                headers = status_or_headers = None
             else:
                 rv = self.response_class.force_type(rv, request.environ)
 
-        if status is not None:
-            if isinstance(status, string_types):
-                rv.status = status
+        if status_or_headers is not None:
+            if isinstance(status_or_headers, string_types):
+                rv.status = status_or_headers
             else:
-                rv.status_code = status
+                rv.status_code = status_or_headers
         if headers:
             rv.headers.extend(headers)
 
         return rv
+
 
     def create_url_adapter(self, request):
         """Creates a URL adapter for the given request.  The URL adapter
@@ -1711,7 +1726,7 @@ class Flask(_PackageBoundObject):
         if bp is not None and bp in self.teardown_request_funcs:
             funcs = chain(funcs, reversed(self.teardown_request_funcs[bp]))
         for func in funcs:
-            rv = func(exc)
+            func(exc)
         request_tearing_down.send(self, exc=exc)
 
     def do_teardown_appcontext(self, exc=None):
@@ -1774,7 +1789,7 @@ class Flask(_PackageBoundObject):
 
     def test_request_context(self, *args, **kwargs):
         """Creates a WSGI environment from the given values (see
-        :func:`werkzeug.test.EnvironBuilder` for more information, this
+        :class:`werkzeug.test.EnvironBuilder` for more information, this
         function accepts the same arguments).
         """
         from flask.testing import make_test_environ_builder
