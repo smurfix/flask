@@ -1,4 +1,4 @@
-flask (0.11~git1-d43bfb261-1) unstable; urgency=low
+flask (0.11~git1-d43bfb261-2) smurf; urgency=low
 
   * Upstream merge from git
 
