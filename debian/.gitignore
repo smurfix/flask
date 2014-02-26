@@ -1,5 +1,7 @@
 /*.log
 /*.substvars
+/*.debhelper
+/files
 /python-flask
 /python3-flask
 /python-flask-doc
