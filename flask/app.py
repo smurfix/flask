@@ -15,6 +15,7 @@ from threading import Lock
 from datetime import timedelta
 from itertools import chain
 from functools import update_wrapper
+from collections import OrderedDict
 
 from werkzeug.datastructures import ImmutableDict
 from werkzeug.routing import Map, Rule, RequestRedirect, BuildError
@@ -469,8 +470,11 @@ class Flask(_PackageBoundObject):
         #: can be attached multiple times so this dictionary does not tell
         #: you how often they got attached.
         #:
+        #: Update in 0.11: use an ordered dict so that theme engines and
+        #: similar systems can override templates by registering first.
+        #:
         #: .. versionadded:: 0.7
-        self.blueprints = {}
+        self.blueprints = OrderedDict()
 
         #: a place where extensions can store application specific state.  For
         #: example this is where an extension could store database engines and
