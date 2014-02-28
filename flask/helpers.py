@@ -690,9 +690,11 @@ def find_package(import_name):
             if loader.is_package(root_mod_name):
                 package_path = os.path.dirname(package_path)
         else:
-            raise AttributeError(
-                ('%s.is_package() method is missing but is '
-                 'required by Flask of PEP 302 import hooks') % loader.__class__.__name__)
+#            raise AttributeError(
+#                ('%s.is_package() method is missing but is '
+#                 'required by Flask of PEP 302 import hooks') % loader.__class__.__name__)
+            if "__init__" in filename:
+                package_path = os.path.dirname(package_path)
 
     site_parent, site_folder = os.path.split(package_path)
     py_prefix = os.path.abspath(sys.prefix)
